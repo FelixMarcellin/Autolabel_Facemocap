@@ -73,12 +73,12 @@ Structure du dépôt
 text
 Autolabel_Facemocap/
 ├── VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V2.py
-├── analyse_stat_V4.2.py
+├── analyse_stat_V4.3.py
 ├── requirements.txt
 └── README.md
 Fichier	Rôle
 VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V2.py	Pipeline principal d'étiquetage automatique. Traite un ou plusieurs dossiers de fichiers C3D, effectue l'étiquetage et calcule le taux de réussite par marqueur.
-analyse_stat_V4.2.py	Analyse statistique comparative entre les trajectoires automatiques (Python) et manuelles (Nexus). Gère l'exclusion des aberrants, le sous-échantillonnage et le calcul des métriques d'accord.
+analyse_stat_V4.3.py	Analyse statistique comparative entre les trajectoires automatiques (Python) et manuelles (Nexus). Gère l'exclusion des aberrants, le sous-échantillonnage et le calcul des métriques d'accord.
 requirements.txt	Liste des dépendances Python nécessaires à l'exécution des scripts.
 Note : ce dépôt est en cours de documentation. Les sections Installation et Utilisation ci-dessous sont à adapter aux arguments réels des scripts.
 
@@ -147,7 +147,7 @@ Les arguments exacts (--input, --output, etc.) sont à vérifier directement dan
 
 2. Analyse statistique
 bash
-python analyse_stat_V4.2.py --auto <dossier_python> --manual <dossier_nexus> --output <dossier_resultats>
+python analyse_stat_V4.3.py --auto <dossier_python> --manual <dossier_nexus> --output <dossier_resultats>
 Le script compare les trajectoires automatiques et manuelles et calcule :
 
 RMSE 3D par enregistrement.

@@ -60,7 +60,7 @@ Les solutions automatisées développées pour le corps rigide ne sont pas direc
 ## Structure du dépôt
 Autolabel_Facemocap/
 ├── VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V2.py
-├── analyse_stat_V3.5_outlier.py
+├── analyse_stat_V4.2.py
 └── README.md
 
 text

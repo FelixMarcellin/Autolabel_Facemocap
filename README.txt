@@ -72,12 +72,12 @@ Analyse statistique comparative (RMSE, corrélation de Pearson, ICC(2,1), Bland-
 Structure du dépôt
 text
 Autolabel_Facemocap/
-├── VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V2.py
+├── VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V3.py
 ├── analyse_stat_V4.3.py
 ├── requirements.txt
 └── README.md
 Fichier	Rôle
-VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V2.py	Pipeline principal d'étiquetage automatique. Traite un ou plusieurs dossiers de fichiers C3D, effectue l'étiquetage et calcule le taux de réussite par marqueur.
+VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V3.py	Pipeline principal d'étiquetage automatique. Traite un ou plusieurs dossiers de fichiers C3D, effectue l'étiquetage et calcule le taux de réussite par marqueur.
 analyse_stat_V4.3.py	Analyse statistique comparative entre les trajectoires automatiques (Python) et manuelles (Nexus). Gère l'exclusion des aberrants, le sous-échantillonnage et le calcul des métriques d'accord.
 requirements.txt	Liste des dépendances Python nécessaires à l'exécution des scripts.
 Note : ce dépôt est en cours de documentation. Les sections Installation et Utilisation ci-dessous sont à adapter aux arguments réels des scripts.
@@ -134,7 +134,7 @@ Une ou plusieurs acquisitions dynamiques contenant les mouvements faciaux préd�
 Utilisation
 1. Étiquetage automatique
 bash
-python VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V2.py --input <dossier_donnees> --output <dossier_sortie>
+python VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V3.py --input <dossier_donnees> --output <dossier_sortie>
 Le script parcourt les dossiers de fichiers C3D, applique le pipeline d'étiquetage et génère :
 
 Un fichier C3D étiqueté par enregistrement.

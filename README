@@ -1,0 +1,429 @@
+# Autolabel_Facemocap
+
+Automated non-rigid facial marker labeling for marker-based motion capture data.
+
+This repository accompanies the manuscript:
+
+> Marcellin F, Rodriguez E, Raoult M, Le Moing A-G, Colin E, Sarhan F-R, Dakpé S.
+> *Automated non-rigid facial marker labeling enables reliable and scalable
+> analysis of facial motion.*
+> Journal of NeuroEngineering and Rehabilitation (under review).
+
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+## Table of contents
+
+1. [Overview](#overview)
+2. [Repository structure](#repository-structure)
+3. [Installation](#installation)
+4. [Input data requirements](#input-data-requirements)
+5. [Axis convention (CRITICAL)](#axis-convention-critical)
+6. [Usage — Labeling pipeline](#usage--labeling-pipeline)
+7. [Usage — Statistical validation](#usage--statistical-validation)
+8. [Threshold summary](#threshold-summary)
+9. [Output files](#output-files)
+10. [Reproducibility notes](#reproducibility-notes)
+11. [Known limitations](#known-limitations)
+12. [Data availability](#data-availability)
+13. [Citation](#citation)
+14. [License](#license)
+15. [Contact](#contact)
+
+---
+
+## Overview
+
+Marker-based facial motion capture provides high-resolution 3D measurements,
+but manual marker labeling is time-consuming and operator-dependent. This
+repository contains two independent scripts:
+
+1. **Labeling pipeline**
+   (`VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V3.py`)
+   automatically assigns a dense set of facial marker labels (up to 105
+   markers) to reconstructed 3D trajectories, using:
+   - a **static reference** acquisition (manually labeled once in Vicon Nexus),
+   - **initial assignment** via Euclidean distance + Hungarian optimization,
+     combined with a **multi-frame voting** strategy (5 frames, ≥ 60 % votes),
+   - **temporal propagation** of marker identities (max inter-frame jump: 40 mm),
+   - **trajectory refinement**: removal of spatial outliers (> 100 mm from the
+     static reference) and linear interpolation of missing samples.
+
+2. **Statistical validation** (`analyse_stat_V4.3.py`)
+   compares the automatically labeled CSV outputs against the manually
+   labeled Vicon Nexus CSVs, and produces all metrics, tables and figures
+   reported in the manuscript:
+   - recording-level 3D RMSE, MAE, median, P95,
+   - threshold-based agreement (1, 2, 3, 5, 10, 15, 20, 30 mm),
+   - coordinate-wise bias (X, Y, Z),
+   - recording-level Bland–Altman analysis,
+   - sensitivity analyses (50, 75, 100, 150 mm),
+   - bootstrap CIs (recording-level and participant-level cluster bootstrap),
+   - publication-ready figures.
+
+The two scripts are **independent**: the validation script reads the outputs
+of the pipeline but does not modify them.
+
+---
+
+## Repository structure
+
+```
+Autolabel_Facemocap/
+├── VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V3.py
+│                                   # Main labeling pipeline
+├── analyse_stat_V4.3.py            # Statistical validation script
+├── configs/
+│   └── marker_labels.csv           # Expected marker label list (example)
+├── requirements.txt
+├── environment.yml
+├── CITATION.cff
+├── LICENSE
+└── README.md
+```
+
+> **Note.** The pipeline script uses interactive `tkinter` dialogs to select
+> input folders and the marker-set CSV file. It is designed to be run
+> locally, not in a headless environment.
+
+---
+
+## Installation
+
+### With conda (recommended)
+
+```bash
+conda env create -f environment.yml
+conda activate autolabel_facemocap
+```
+
+### With pip
+
+```bash
+python -m venv .venv
+source .venv/bin/activate      # Linux / macOS
+# .venv\Scripts\activate       # Windows
+pip install -r requirements.txt
+```
+
+Tested with **Python 3.11.7**.
+
+### Core dependencies
+
+| Package | Version (tested) | Purpose |
+|---|---|---|
+| `numpy` | ≥ 1.26 | Numerical arrays |
+| `pandas` | ≥ 2.1 | CSV I/O, tables |
+| `scipy` | ≥ 1.11 | Hungarian algorithm, statistics |
+| `ezc3d` | ≥ 1.5 | C3D file I/O |
+| `matplotlib` | ≥ 3.8 | Figures |
+| `pingouin` | ≥ 0.5 (optional) | ICC(2,1) |
+| `tkinter` | stdlib | Interactive file dialogs |
+
+---
+
+## Input data requirements
+
+### Labeling pipeline
+
+- **Dynamic recordings** in **C3D** format.
+- **One static acquisition per participant**, manually labeled in Vicon Nexus
+  and saved as `*statique.c3d` (the suffix is used to identify the static
+  file inside each subfolder).
+- A **CSV file listing the expected marker labels**, one per line
+  (see `configs/marker_labels.csv` for the format).
+
+### Statistical validation
+
+- A folder containing the **manually labeled Nexus CSV files**.
+- A folder containing the **automatically labeled Python CSV files**
+  (outputs of the pipeline).
+- *(Optional)* A folder containing the **pre-interpolation Python CSV files**,
+  to enable the "direct vs non-direct" sensitivity analysis.
+
+CSV files are expected to have:
+- `SKIP_ROWS = 7` header lines,
+- `NON_COORD_COLUMNS = 2` non-coordinate columns (Frame, Time),
+- then triplets of X, Y, Z columns for each marker.
+
+---
+
+## Axis convention (CRITICAL)
+
+> ⚠️ **Read this section before running the pipeline on your own data.**
+
+The current implementation assumes the following axis convention:
+
+| Axis | Meaning | Orientation |
+|---|---|---|
+| **X** | Left–right | Subject's right = positive |
+| **Y** | Anterior–posterior | Forward = positive |
+| **Z** | **Vertical** | **Upward = positive** |
+
+This is **not** the standard ISB convention (where Y is vertical). The
+pipeline was developed with a Vicon export where **Z is the vertical axis**.
+
+**Consequences:**
+
+- The ground filter (`GROUND_MARGIN_MM = 20 mm`) removes detections with
+  `Z < min(static_Z) - 20 mm`. If your acquisition uses a different
+  convention, this filter will remove the **wrong** markers (e.g., markers
+  behind the face rather than below it).
+- The axis-wise bias analysis (`Bias_X_mm`, `Bias_Y_mm`, `Bias_Z_mm`)
+  must be interpreted according to this convention.
+
+**If your acquisition system uses a different convention**, adapt the
+following line in `VF_autolabel_GENERAL_..._V3.py`:
+
+```python
+z_floor = np.nanmin(static_clean[:, 2]) - GROUND_MARGIN_MM
+```
+
+Replace the index `2` (Z) with the index of the vertical axis in your
+convention (typically `1` for Y-vertical).
+
+---
+
+## Usage — Labeling pipeline
+
+```bash
+python VF_autolabel_GENERAL_tous_dossiers_taux_reussite_marqueurs_V3.py
+```
+
+The script will open interactive dialogs:
+
+1. **Select the marker-set CSV file** (one label per line).
+2. **Select the root folder** containing one subfolder per participant.
+
+Each participant subfolder must contain:
+- one `*statique.c3d` file (static reference),
+- one or more dynamic `.c3d` files.
+
+### Folder structure expected
+
+```
+root_folder/
+├── participant_01/
+│   ├── 20240101_P01_statique.c3d
+│   ├── 20240101_P01_M1_01.c3d
+│   ├── 20240101_P01_M1_02.c3d
+│   └── ...
+├── participant_02/
+│   ├── ...
+└── ...
+```
+
+### Outputs (per subfolder)
+
+Inside each `participant_XX/labeled_output/`:
+
+- `<recording>_labeled.c3d` — labeled trajectories, in the predefined marker order.
+- `<recording>_labeled.csv` — frame-wise X, Y, Z per marker.
+  **Missing values are written as empty cells, never as `0.0`.**
+
+### Outputs (global, at the root folder)
+
+- `global_tracking_summary.csv` — one row per recording: init confidence,
+  tracking confidence, number of assignments, confirmed labels.
+- `global_marker_stability.csv` — one row per marker: mean labeling stability,
+  mean tracking stability, global stability, status (`OK` / `UNSTABLE`).
+
+### Logs
+
+A detailed log is written to `autolabel_pipeline.log` in the working
+directory, including diagnostic information per frame and per marker.
+
+---
+
+## Usage — Statistical validation
+
+```bash
+python analyse_stat_V4.3.py
+```
+
+The script will open interactive dialogs:
+
+1. **Select the Nexus folder** (manual labels).
+2. **Select the Python folder** (automated labels).
+3. *(Optional)* **Select the pre-interpolation Python folder**, if available,
+   to enable the direct vs non-direct sensitivity analysis.
+
+### Outputs
+
+All outputs are written to `<python_folder>/Stat_V4.3_JNER/`:
+
+| File | Content |
+|---|---|
+| `01_summary_global.csv` | Global summary (one row) |
+| `02_metrics_per_recording.csv` | One row per recording |
+| `03_metrics_per_marker.csv` | One row per (recording, marker) |
+| `03b_metrics_per_marker_summary.csv` | Aggregated per marker |
+| `04_metrics_per_axis.csv` | One row per (recording, marker, axis) |
+| `05_accuracy_thresholds.csv` | Agreement at each threshold |
+| `06_outlier_sensitivity.csv` | Sensitivity to exclusion threshold |
+| `07_bland_altman_recording_level.csv` | Recording-level Bland–Altman |
+| `07b_bland_altman_recording_points.csv` | Per-recording BA points |
+| `07c_bland_altman_pooled_observations.csv` | Pooled BA (descriptive) |
+| `08_statistical_report.txt` | Full human-readable report |
+| `10_publication_figure_V4.3_JNER.png` | Main 6-panel figure |
+| `11_sensitivity_to_exclusion_threshold.png` | Sensitivity figure |
+| `statistical_analysis_V4.3.log` | Full log |
+
+---
+
+## Threshold summary
+
+> The number **100 mm** appears in **three distinct contexts**. They must not
+> be confused.
+
+| Threshold | Value | Role | Location |
+|---|---|---|---|
+| `MAX_DISTANCE` | 50 mm | Hungarian assignment rejection | pipeline |
+| `MAX_FRAME_JUMP_MM` | 40 mm | Temporal propagation | pipeline |
+| `GROUND_MARGIN_MM` | 20 mm | Non-facial detection removal (Z axis) | pipeline |
+| `SKIP_FRAMES` | 15 | Initial frames discarded | pipeline |
+| `N_FRAMES_INITIAL_LABELING` | 5 | Frames used for voting | pipeline |
+| `MIN_VOTE_FOR_LABEL` | 0.60 | Final assignment threshold | pipeline |
+| `LABEL_VOTE_THRESHOLD` | 0.40 | QC status (`OK` / `UNSTABLE`) | pipeline report |
+| `OUTLIER_THRESHOLD` | 100 mm | Outlier vs **static reference** (internal) | pipeline |
+| `OUTLIER_THRESHOLD_MM` | 100 mm | Nexus-vs-Python **exclusion** (sensitivity only) | analysis |
+| `GROSS_DISCREPANCY_MM` | 100 mm | **Gross discrepancy count** (descriptive) | analysis |
+
+**Important distinctions:**
+
+- **`OUTLIER_THRESHOLD` (pipeline)** is relative to the **static reference**.
+  It removes implausible tracking artifacts before interpolation.
+- **`OUTLIER_THRESHOLD_MM` (analysis)** is applied to the **Nexus-vs-Python
+  discrepancy**. It is used **only** in the sensitivity analyses. The primary
+  analysis includes **all valid paired observations**, without exclusion.
+- **`GROSS_DISCREPANCY_MM` (analysis)** is a **descriptive** threshold used to
+  count observations that cannot plausibly result from labeling variability
+  (≈ 50–65 % of adult facial height).
+
+---
+
+## Output files
+
+### CSV format
+
+All CSVs are written with:
+- separator: `;` (semicolon),
+- encoding: `utf-8-sig` (BOM for Excel compatibility),
+- decimal separator: `.` (point).
+
+### C3D format
+
+Labeled C3D files are written with `ezc3d` and contain:
+- `points` array shape `(4, n_markers, n_frames)` (4th channel = confidence),
+- `POINT:LABELS` set to the predefined marker order,
+- `POINT:RATE` set to the original sampling rate.
+
+---
+
+## Reproducibility notes
+
+- **Missing values** are encoded as **empty cells** in CSV outputs, never
+  as `0.0`.
+- **No temporal smoothing filter** is applied by the pipeline.
+- The **bootstrap** uses `RANDOM_SEED = 42`; results are deterministic
+  given the same inputs.
+- The **cluster bootstrap** resamples participants (not recordings),
+  retaining all recordings per sampled participant.
+- The **primary statistical analysis** is performed at the **recording level**
+  to avoid pseudoreplication.
+- The **ICC(2,1)** is computed on pooled coordinate-level observations and is
+  therefore interpreted as a **descriptive** measure only.
+
+---
+
+## Known limitations
+
+These limitations are documented in the manuscript (see Discussion) and are
+reproduced here for transparency.
+
+1. **Axis convention.** The pipeline assumes Z is vertical. Users with a
+   different convention must adapt the ground filter (see
+   [Axis convention](#axis-convention-critical)).
+
+2. **Interpolation at edges.** `numpy.interp` does not extrapolate: NaNs at
+   the very beginning or end of a trajectory are filled with the nearest
+   valid value, not by linear extrapolation. The manuscript's wording
+   ("linear interpolation") is an approximation for those edge cases.
+
+3. **No maximum gap length.** The interpolation step does not enforce a
+   maximum gap length. Very long gaps (e.g., a marker occluded for most of
+   the recording) may produce spurious interpolated trajectories. A future
+   release should add a `MAX_GAP_LENGTH` parameter.
+
+4. **Initialization frame selection.** The 5 initialization frames are
+   selected based on the number of markers with **valid X coordinate only**,
+   not valid XYZ. This is more permissive than the manuscript description.
+   A future release should use full XYZ validity.
+
+5. **Direct vs non-direct analysis.** The statistical script includes an
+   optional branch to separate interpolated from non-interpolated
+   observations, but this requires a pre-interpolation Python dataset. If
+   such a dataset is not available, the branch is inactive and the
+   corresponding metrics are reported as `NaN`.
+
+6. **Static reference dependency.** The pipeline still requires **one manually
+   labeled static acquisition per participant**. It reduces, but does not
+   eliminate, manual labeling work.
+
+7. **Tested on Vicon + 105-marker protocol.** The pipeline has not been
+   validated on other motion capture systems, other marker sets, or other
+   sampling rates.
+
+---
+
+## Data availability
+
+The motion capture datasets are **not publicly available** due to regulatory
+protection of health data (Comité de Protection des Personnes Nord-Ouest II,
+IDRCB: 2022-A00701-42; clinical trial NCT05581680). They may be available
+from the corresponding author upon reasonable request.
+
+The source code in this repository is released under the MIT License
+(see [LICENSE](LICENSE)).
+
+---
+
+## Citation
+
+If you use this code in your work, please cite:
+
+```bibtex
+@article{marcellin2026autolabel,
+  title   = {Automated non-rigid facial marker labeling enables reliable
+             and scalable analysis of facial motion},
+  author  = {Marcellin, F{\'e}lix and Rodriguez, Eder and Raoult, Myriam
+             and Le Moing, Anne-Ga{\"e}lle and Colin, Emilien
+             and Sarhan, Fran{\c c}ois-R{\'e}gis and Dakp{\'e}, St{\'e}phanie},
+  journal = {Journal of NeuroEngineering and Rehabilitation},
+  year    = {2026},
+  note    = {Under review}
+}
+```
+
+A `CITATION.cff` file is provided for automatic citation generation by GitHub.
+
+---
+
+## License
+
+This project is licensed under the **MIT License** — see the
+[LICENSE](LICENSE) file for details.
+
+---
+
+## Contact
+
+**Félix Marcellin**
+INSERM UA-21 CHIMERE, Université de Picardie Jules Verne (UPJV), Amiens, France
+Institut Faire Faces, Amiens, France
+📧 felix.marcellin@u-picardie.fr
+
+For bug reports and feature requests, please open an
+[issue](https://github.com/FelixMarcellin/Autolabel_Facemocap/issues).
